@@ -16,6 +16,7 @@ def tail_file(file, buffer, stop_event):
             time.sleep(0.01)
             continue
         buffer.write(line)
+        buffer.flush()
     buffer.flush()
 
 
