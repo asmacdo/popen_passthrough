@@ -1,57 +1,46 @@
 #!/usr/bin/env python
 import subprocess
-from pathlib import Path
 import sys
-import threading
-import time
-
-OUTFILE = "stdout"
-ERRFILE = "stderr"
 
 
-def tail_file(file, buffer, stop_event):
-    while not stop_event.is_set():
-        line = file.read()
-        if not line:
-            time.sleep(0.01)
-            continue
-        buffer.write(line)
-        buffer.flush()
-    buffer.flush()
+def stream_and_capture_output(args):
+    process = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=0,  # No internal buffering
+    )
 
+    # Read stdout and stderr in real-time
+    while True:
+        out_line = process.stdout.readline()
+        err_line = process.stderr.readline()
+        if out_line:
+            sys.stdout.buffer.write(out_line)
+            sys.stdout.buffer.flush()
+        if err_line:
+            sys.stderr.buffer.write(err_line)
+            sys.stderr.buffer.flush()
+        if process.poll() is not None:
+            break
 
-def main():
-    out_file_path = Path(OUTFILE)
-    err_file_path = Path(ERRFILE)
-    if out_file_path.exists():
-        out_file_path.unlink()
-    out_file_path.touch()
-    if err_file_path.exists():
-        err_file_path.unlink()
-    err_file_path.touch()
-
-    with open(OUTFILE, "rb") as out_readfile, open(ERRFILE, "rb") as err_readfile:
-        out_stop = threading.Event()
-        out_thread = threading.Thread(target=tail_file, args=(out_readfile, sys.stdout.buffer, out_stop))
-        out_thread.start()
-        err_stop = threading.Event()
-        err_thread = threading.Thread(target=tail_file, args=(err_readfile, sys.stderr.buffer, err_stop))
-        err_thread.start()
-
-        with open(OUTFILE, "wb") as out_writefile, open(ERRFILE, "wb") as err_writefile:
-            process = subprocess.Popen(
-                ["./test_script.py"],
-                stdout=out_writefile,
-                stderr=err_writefile,
-                bufsize=0,
-            )
-            process.wait()
-            out_stop.set()
-            err_stop.set()
-            out_thread.join()
-            err_thread.join()
-
+    # Capture any remaining output after the process has exited
+    for out_line in process.stdout:
+        sys.stdout.buffer.write(out_line)
+        sys.stdout.buffer.flush()
+    for err_line in process.stderr:
+        sys.stderr.buffer.write(err_line)
+        sys.stderr.buffer.flush()
 
 
 if __name__ == '__main__':
-    main()
+    print("============= python -u (unbuffered)")
+    stream_and_capture_output(
+        ["python3", "-u", "./test_script.py", "--duration", "5"],
+    )
+    print("=============")
+    print("---------------  direct execution ---------------")
+    stream_and_capture_output(
+        ["./test_script.py", "--duration", "5"],
+    )
+    print("------------------------------")
