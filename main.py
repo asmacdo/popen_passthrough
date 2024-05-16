@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import subprocess
 import sys
 
@@ -12,25 +13,30 @@ def stream_and_capture_output(args):
     )
 
     # Read stdout and stderr in real-time
+    fast_stdout = os.fdopen(sys.stdout.fileno(), 'wb', 0)
+    fast_stderr = os.fdopen(sys.stderr.fileno(), 'wb', 0)
     while True:
-        out_line = process.stdout.readline()
-        err_line = process.stderr.readline()
-        if out_line:
-            sys.stdout.buffer.write(out_line)
-            sys.stdout.buffer.flush()
-        if err_line:
-            sys.stderr.buffer.write(err_line)
-            sys.stderr.buffer.flush()
+        out = process.stdout.read()
+        err = process.stderr.read()
+        if out:
+            print("HI")
+            fast_stdout.write(out)
+            fast_stdout.flush()
+        if err:
+            fast_stderr.write(err)
+            fast_stderr.flush()
         if process.poll() is not None:
             break
+    fast_stdout.close()
+    fast_stdout.close()
 
     # Capture any remaining output after the process has exited
-    for out_line in process.stdout:
-        sys.stdout.buffer.write(out_line)
-        sys.stdout.buffer.flush()
-    for err_line in process.stderr:
-        sys.stderr.buffer.write(err_line)
-        sys.stderr.buffer.flush()
+    # for out_line in process.stdout:
+    #     fast_stdout.write(out)
+    #     fast_stderr.flush()
+    # for err_line in process.stderr:
+    #     fast_stderr.write(err_line)
+    #     fast_stderr.flush()
 
 
 if __name__ == '__main__':
